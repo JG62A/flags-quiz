@@ -1,4 +1,4 @@
-const CACHE_NAME = "flags-quiz-v5";
+const CACHE_NAME = "flags-quiz-v6";
 const SCOPE = self.registration.scope;
 
 const ASSET_PATHS = [

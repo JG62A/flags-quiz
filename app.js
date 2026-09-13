@@ -453,7 +453,7 @@ async function prepareOffline() {
 
   try {
     setOfflineStatus("Сохраняем игру на iPad…");
-    const registration = await navigator.serviceWorker.register("./service-worker.js?v=5", { scope: "./" });
+    const registration = await navigator.serviceWorker.register("./service-worker.js?v=6", { scope: "./" });
     await navigator.serviceWorker.ready;
     if (registration.update) registration.update();
 
