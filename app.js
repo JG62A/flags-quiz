@@ -178,7 +178,7 @@ const state = {
 };
 
 function flagUrl(code) {
-  return new URL(`flags/${code}.svg`, document.baseURI).href;
+  return new URL(`flags/${code}.png`, document.baseURI).href;
 }
 
 function shuffle(list) {
@@ -323,25 +323,28 @@ function renderQuestion() {
   els.options.replaceChildren();
 
   current.options.forEach((option) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "flag-btn";
-    button.dataset.code = option.code;
+    const card = document.createElement("div");
+    card.className = "flag-btn";
+    card.dataset.code = option.code;
+    card.setAttribute("role", "button");
+    card.tabIndex = 0;
+    card.setAttribute("aria-label", "Флаг");
 
     const image = document.createElement("img");
     image.src = flagUrl(option.code);
-    image.alt = "Флаг";
-    image.decoding = "async";
+    image.alt = "";
+    image.width = 320;
+    image.height = 192;
+    image.decoding = "sync";
     image.draggable = false;
 
     const caption = document.createElement("span");
     caption.className = "flag-caption";
     caption.setAttribute("aria-hidden", "true");
 
-    button.append(image, caption);
-    button.setAttribute("aria-label", "Флаг");
-    button.addEventListener("click", () => answer(option.code, button));
-    els.options.appendChild(button);
+    card.append(image, caption);
+    card.addEventListener("click", () => answer(option.code, card));
+    els.options.appendChild(card);
   });
 }
 
@@ -353,18 +356,20 @@ function answer(code, clicked) {
   const isCorrect = code === current.country.code;
   const buttons = [...els.options.querySelectorAll(".flag-btn")];
 
-  buttons.forEach((button) => {
-    button.disabled = true;
-    button.classList.add("is-revealed");
-    const caption = button.querySelector(".flag-caption");
-    const option = current.options.find((item) => item.code === button.dataset.code);
+  buttons.forEach((card) => {
+    card.classList.add("is-disabled");
+    card.setAttribute("aria-disabled", "true");
+    card.tabIndex = -1;
+    card.classList.add("is-revealed");
+    const caption = card.querySelector(".flag-caption");
+    const option = current.options.find((item) => item.code === card.dataset.code);
     if (caption && option) {
       caption.textContent = option.name;
       caption.removeAttribute("aria-hidden");
     }
-    button.setAttribute("aria-label", option ? option.name : "Флаг");
-    if (button.dataset.code === current.country.code) {
-      button.classList.add("is-correct");
+    card.setAttribute("aria-label", option ? option.name : "Флаг");
+    if (card.dataset.code === current.country.code) {
+      card.classList.add("is-correct");
     }
   });
 
@@ -448,7 +453,7 @@ async function prepareOffline() {
 
   try {
     setOfflineStatus("Сохраняем игру на iPad…");
-    const registration = await navigator.serviceWorker.register("./service-worker.js", { scope: "./" });
+    const registration = await navigator.serviceWorker.register("./service-worker.js?v=5", { scope: "./" });
     await navigator.serviceWorker.ready;
     if (registration.update) registration.update();
 
