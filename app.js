@@ -177,6 +177,10 @@ const state = {
   nextTimer: null,
 };
 
+function flagUrl(code) {
+  return new URL(`flags/${code}.svg`, document.baseURI).href;
+}
+
 function shuffle(list) {
   const copy = list.slice();
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -325,8 +329,9 @@ function renderQuestion() {
     button.dataset.code = option.code;
 
     const image = document.createElement("img");
-    image.src = `flags/${option.code}.svg`;
-    image.alt = "";
+    image.src = flagUrl(option.code);
+    image.alt = "Флаг";
+    image.decoding = "async";
     image.draggable = false;
 
     const caption = document.createElement("span");
@@ -425,8 +430,52 @@ els.replay.addEventListener("click", () => {
   showScreen("start");
 });
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
-  });
+function setOfflineStatus(text) {
+  const status = document.getElementById("offline-status");
+  if (status) status.textContent = text;
 }
+
+async function prepareOffline() {
+  COUNTRIES.forEach((country) => {
+    const preload = new Image();
+    preload.src = flagUrl(country.code);
+  });
+
+  if (!("serviceWorker" in navigator) || !("caches" in window)) {
+    setOfflineStatus("Офлайн-режим в этом браузере недоступен. Откройте игру в Safari.");
+    return;
+  }
+
+  try {
+    setOfflineStatus("Сохраняем игру на iPad…");
+    const registration = await navigator.serviceWorker.register("./service-worker.js", { scope: "./" });
+    await navigator.serviceWorker.ready;
+    if (registration.update) registration.update();
+
+    const keys = await caches.keys();
+    const cache = keys.length ? await caches.open(keys[keys.length - 1]) : null;
+    const cached = cache ? await cache.keys() : [];
+    const flagCount = cached.filter((request) => request.url.includes("/flags/")).length;
+
+    if (flagCount >= 50) {
+      setOfflineStatus("Игра сохранена. Можно играть без интернета.");
+    } else {
+      setOfflineStatus("Оставьте страницу открытой на минуту, пока флаги сохраняются.");
+      window.setTimeout(async () => {
+        const laterKeys = await caches.keys();
+        const laterCache = laterKeys.length ? await caches.open(laterKeys[laterKeys.length - 1]) : null;
+        const laterCached = laterCache ? await laterCache.keys() : [];
+        const laterFlags = laterCached.filter((request) => request.url.includes("/flags/")).length;
+        setOfflineStatus(
+          laterFlags >= 50
+            ? "Игра сохранена. Можно играть без интернета."
+            : "Сохранение ещё идёт. Обновите страницу в Safari и подождите."
+        );
+      }, 2500);
+    }
+  } catch (error) {
+    setOfflineStatus("Не удалось сохранить офлайн. Откройте сайт в Safari по Wi‑Fi.");
+  }
+}
+
+prepareOffline();

@@ -1,8 +1,7 @@
-const CACHE_NAME = "flags-quiz-v3";
-const BASE = new URL("./", self.location).pathname;
+const CACHE_NAME = "flags-quiz-v4";
+const SCOPE = self.registration.scope;
 
-const ASSETS = [
-  "",
+const ASSET_PATHS = [
   "index.html",
   "style.css",
   "app.js",
@@ -81,11 +80,28 @@ const ASSETS = [
   "flags/va.svg",
   "flags/vn.svg",
   "flags/za.svg",
-].map((path) => `${BASE}${path}`);
+];
+
+const ASSETS = ASSET_PATHS.map((path) => new URL(path, SCOPE).href);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      await Promise.all(
+        ASSETS.map(async (url) => {
+          try {
+            const response = await fetch(url, { cache: "reload" });
+            if (response && response.ok) {
+              await cache.put(url, response);
+            }
+          } catch (error) {
+            // Keep installing even if one file fails.
+          }
+        })
+      );
+      await self.skipWaiting();
+    })()
   );
 });
 
@@ -104,37 +120,26 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   const url = new URL(event.request.url);
-  const isAppFile = /\.(?:html|css|js|json)$/.test(url.pathname) || url.pathname === BASE || url.pathname === BASE.replace(/\/$/, "");
-
-  if (isAppFile) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match(`${BASE}index.html`)))
-    );
-    return;
-  }
+  if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    (async () => {
+      const cached = await caches.match(event.request, { ignoreSearch: true });
       if (cached) return cached;
 
-      return fetch(event.request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type === "opaque") {
-            return response;
-          }
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(`${BASE}index.html`));
-    })
+      try {
+        const response = await fetch(event.request);
+        if (response && response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(event.request, response.clone());
+        }
+        return response;
+      } catch (error) {
+        if (event.request.mode === "navigate" || event.request.destination === "document") {
+          return (await caches.match(new URL("index.html", SCOPE).href)) || Response.error();
+        }
+        return Response.error();
+      }
+    })()
   );
 });
